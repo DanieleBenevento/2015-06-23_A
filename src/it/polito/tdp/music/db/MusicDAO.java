@@ -1,6 +1,7 @@
 package it.polito.tdp.music.db;
 
 import it.polito.tdp.music.model.Artist;
+import it.polito.tdp.music.model.AutoreAscolti;
 import it.polito.tdp.music.model.City;
 import it.polito.tdp.music.model.Country;
 import it.polito.tdp.music.model.Listening;
@@ -12,10 +13,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+
+import com.javadocmd.simplelatlng.LatLng;
 
 public class MusicDAO {
 	
-	public List<Country> getAllCountries() {
+	public List<Country> getAllCountries(Map<Integer,Country>m) {
 		final String sql = "SELECT id, country FROM country" ;
 		
 		List<Country> countries = new LinkedList<Country>() ;
@@ -28,7 +32,9 @@ public class MusicDAO {
 			ResultSet res = st.executeQuery() ;
 			
 			while( res.next() ) {
-				countries.add( new Country(res.getInt("id"), res.getString("country"))) ;
+				Country c=new Country(res.getInt("id"), res.getString("country"));
+				countries.add(c) ;
+				m.put(res.getInt("id"), c);
 			}
 			
 			conn.close() ;
@@ -70,7 +76,7 @@ public class MusicDAO {
 	}
 
 	
-	public List<Artist> getAllArtists() {
+	public List<Artist> getAllArtists(Map<Integer,Artist>m) {
 		final String sql = "SELECT id, artist FROM artist" ;
 		
 		List<Artist> artists = new LinkedList<Artist>() ;
@@ -83,7 +89,9 @@ public class MusicDAO {
 			ResultSet res = st.executeQuery() ;
 			
 			while( res.next() ) {
-				artists.add( new Artist(res.getInt("id"), res.getString("artist"))) ;
+				Artist a= new Artist(res.getInt("id"), res.getString("artist"));
+				artists.add(a) ;
+				m.put(a.getId(), a);
 			}
 			
 			conn.close() ;
@@ -152,11 +160,125 @@ public class MusicDAO {
 		return listenings ;
 		
 	}
-
-
 	
+	public List<AutoreAscolti> getAutoriAscolti(int month,Map<Integer,Artist>m) {
+		final String sql = "SELECT l.artistid,COUNT(l.id),l.country FROM listening AS l WHERE l.MONTH= ? GROUP BY l.artistid" ;
+		
+		List<AutoreAscolti> list = new LinkedList<AutoreAscolti>() ;
+		
+		try {
+			Connection conn = DBConnect.getConnection() ;
+
+			PreparedStatement st = conn.prepareStatement(sql) ;
+			
+			st.setInt(1, month);
+			
+			ResultSet res = st.executeQuery() ;
+			
+			while( res.next() ) {
+				AutoreAscolti a=new AutoreAscolti(res.getInt("artistid"),m.get(res.getInt("artistid")),res.getInt("COUNT(l.id)"));
+				list.add(a);
+			}
+			
+			conn.close() ;
+		} catch (SQLException e) {
+			
+			e.printStackTrace();
+			return null ;
+		}
+		
+		return list ;
+		
+	}
+
+	public List<Country> getTopCountry(int month,Map<Integer,Country>m) {
+		final String sql = "SELECT DISTINCT countryid FROM listening WHERE artistid= ? " ;
+		
+		List<Country> list = new LinkedList<Country>() ;
+		
+		try {
+			Connection conn = DBConnect.getConnection() ;
+
+			PreparedStatement st = conn.prepareStatement(sql) ;
+			
+			st.setInt(1, month);
+			
+			ResultSet res = st.executeQuery() ;
+			
+			while( res.next() ) {
+				list.add(m.get(res.getInt("countryid")));
+			}
+			
+			conn.close() ;
+		} catch (SQLException e) {
+			
+			e.printStackTrace();
+			return null ;
+		}
+		
+		return list ;
+		
+	}
+
+	public int getPeso(Country c,Country m) {
+		final String sql = "SELECT COUNT(l1.artistid) FROM listening AS l1, listening AS l2 WHERE l1.countryid= ? AND l2.countryid= ? AND l1.artistid=l2.artistid GROUP BY l1.artistid " ;
+		
+		int peso=0;
+		
+		try {
+			Connection conn = DBConnect.getConnection() ;
+
+			PreparedStatement st = conn.prepareStatement(sql) ;
+			
+			st.setInt(1, c.getId());
+			st.setInt(2, m.getId());
+			
+			ResultSet res = st.executeQuery() ;
+			
+			if( res.next() ) {
+				peso=res.getInt("COUNT(artistid)");
+			}
+			
+			conn.close() ;
+		} catch (SQLException e) {
+			
+			e.printStackTrace();
+			return -1 ;
+		}
+		
+		return 0 ;
+		
+	}
 	
-	public static void main(String[] args) {
+	public LatLng getLatLngCountry(Country c) {
+		final String sql = "SELECT AVG(latitude),AVG(longitude) FROM listening WHERE countryid= ? " ;
+		
+		try {
+			Connection conn = DBConnect.getConnection() ;
+
+			PreparedStatement st = conn.prepareStatement(sql) ;
+			
+			st.setInt(1, c.getId());
+		
+			ResultSet res = st.executeQuery() ;	
+			
+			if( res.next() ) {
+				LatLng l=new LatLng(res.getLong("AVG(latitude)"),res.getLong("AVG(longitude)"));
+				return l;
+			}
+			
+			conn.close() ;
+		} catch (SQLException e) {
+			
+			e.printStackTrace();
+			return null ;
+		}
+		
+		return null ;
+		
+	}
+	
+	/*public static void main(String[] args) {
 		MusicDAO dao = new MusicDAO() ;
 		
 		List<Country> countries = dao.getAllCountries() ;
@@ -175,6 +297,6 @@ public class MusicDAO {
 
 		System.out.format("Loaded %d countries, %d cities, %d artists, %d tracks, %d listenings\n", 
 				countries.size(), cities.size(), artists.size(), tracks.size(), listenings.size()) ;
-	}
+	}*/
 
 }
